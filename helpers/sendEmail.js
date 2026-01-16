@@ -26,66 +26,70 @@ const sendEmail = async(to,subject,html) => {
     }
 }
 
-const verificationEmailTemplate = ( name, verificationLink ) => {
-    return `
-    <!DOCTYPE html>
-    <html>
-    <body style="margin:0; padding:0; background-color:#f4f6f8; font-family: Arial, sans-serif;">
-        <table width="100%" cellpadding="0" cellspacing="0">
+const verificationEmailTemplate = (name, verificationLink) => `
+<!DOCTYPE html>
+<html>
+  <body style="margin:0; padding:0; background-color:#f4f6f8; font-family: Arial, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center" style="padding:40px 10px;">
+          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:8px; padding:30px;">
+            
+            <!-- Header -->
             <tr>
-                <td align="center" style="padding:40px 10px;">
-                    <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:8px; padding:30px;">
-                        <tr>
-                            <td align="center">
-                                <h2 style="color:#333333; margin-bottom:20px;">
-                                    Verify Your Email Address
-                                </h2>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style="color:#555555; font-size:16px; line-height:24px; text-align:center;">
-                                Hello ${name || "there"},<br><br>
-                                Thank you for registering. Please confirm your email address by clicking the button below.
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td align="center" style="padding:30px 0;">
-                                <a href="${verificationLink}"
-                                   style="
-                                       background-color:#007BFF;
-                                       color:#ffffff;
-                                       text-decoration:none;
-                                       padding:14px 30px;
-                                       border-radius:6px;
-                                       font-size:16px;
-                                       font-weight:bold;
-                                       display:inline-block;
-                                   ">
-                                    Verify Email
-                                </a>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style="color:#888888; font-size:13px; line-height:20px; text-align:center;">
-                                If you did not create an account, you can safely ignore this email.
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style="padding-top:30px; text-align:center; font-size:12px; color:#aaaaaa;">
-                                © ${new Date().getFullYear()} Your App Name. All rights reserved.
-                            </td>
-                        </tr>
-                    </table>
-                </td>
+              <td align="center">
+                <h2 style="color:#333333; margin-bottom:20px;">Verify Your Email Address</h2>
+              </td>
             </tr>
-        </table>
-    </body>
-    </html>
-    `;
-};
+
+            <!-- Greeting -->
+            <tr>
+              <td style="color:#555555; font-size:16px; line-height:24px; text-align:center;">
+                Hello ${name || "there"},<br><br>
+                Thank you for registering. Please confirm your email address by clicking the button below.
+              </td>
+            </tr>
+
+            <!-- Button -->
+            <tr>
+              <td align="center" style="padding:30px 0;">
+                <a href="${verificationLink}" target="_blank"
+                   style="
+                     display:inline-block;
+                     padding:14px 30px;
+                     font-size:16px;
+                     font-weight:bold;
+                     color:#ffffff;
+                     text-decoration:none;
+                     background-color:#007BFF;
+                     border-radius:6px;
+                   ">
+                  Verify Email
+                </a>
+              </td>
+            </tr>
+
+            <!-- Disclaimer -->
+            <tr>
+              <td style="color:#888888; font-size:13px; line-height:20px; text-align:center;">
+                If you did not create an account, you can safely ignore this email.
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding-top:30px; text-align:center; font-size:12px; color:#aaaaaa;">
+                © ${new Date().getFullYear()} Your App Name. All rights reserved.
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`;
+
 
 module.exports ={ sendEmail,verificationEmailTemplate}

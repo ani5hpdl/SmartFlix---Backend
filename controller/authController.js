@@ -39,7 +39,7 @@ const registerUser = async(req,res) => {
 
         const verificationExpiresIn = new Date(Date.now() + 1 * 60 * 60 * 1000);
 
-        const verificationLink = `{${process.env.WEB_URL}/api/user/verify?token=${verificationToken}}`;
+        const verificationLink = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
 
         const html = verificationEmailTemplate(name,verificationLink);
 
@@ -67,7 +67,7 @@ const registerUser = async(req,res) => {
 
         return res.status(201).json({
             success : true,
-            message : "User Created successfully!!"
+            message : "User Created successfully!! Please Check your Email"
         });
 
     }catch(error){
@@ -113,7 +113,7 @@ const login = async(req,res) =>{
 
             const verificationExpiresIn = new Date(Date.now() + 1 * 60 * 60 * 1000);
             await fetchUser.update({verificationExpiresIn : verificationExpiresIn});
-            const verificationLink = `http://localhost:3000/api/user/verify?token=${fetchUser.verificationToken}`;
+            const verificationLink = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
             const html = verificationEmailTemplate(await fetchUser.name,verificationLink);
             const isEmailSent = sendEmail(email,"Verification Email",html);
 
@@ -170,4 +170,50 @@ const logOut = async(req,res) => {
     }
 }
 
-module.exports = {registerUser,login,logOut}     
+const verify = async(req,res) => {
+    try {
+        const {token} = req.query;
+        if(!token){
+            return res.status(400).json({
+                success : false,
+                message : "Token Missing!"
+            });
+        }
+
+        const fetchUser = await User.findOne({where: {verificationToken : token}});
+
+        if(!fetchUser){
+            return res.status(404).json({
+                success : false,
+                message : "Invalid Token"
+            });
+        }
+
+        if(fetchUser.verificationExpiresIn < new Date()){
+            return res.status(400).json({
+                success : false,
+                message : "Verification Token Expired Try Login Again!!"
+            });
+        }
+
+        await fetchUser.update({
+            isEmailVerified : true,
+            verificationToken : null,
+            verificationExpiresIn : null
+        });
+
+        return res.status(200).json({
+            success : true,
+            message : "You are Verified Try Logging!!"
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success : false,
+            message : "Error While Verifying you",
+            error : error.message
+        });
+    }
+}
+
+module.exports = {registerUser,login,logOut,verify}     
