@@ -5,7 +5,7 @@ const { sequelize, connectDB } = require("./database/db")
 require('dotenv').config();
 
 app.use(cors({
-    origin : "http://localhost:5173",
+    origin : ["http://localhost:5173","http://localhost:5174"],
     credentials : true
 }));
 
@@ -17,7 +17,7 @@ app.get("/",(req,res) =>{
 
 app.use(express.json());
 app.use("/api/auth",require('./routes/authRoutes'))
-// app.use("/api/movies",require('./routes/movieRoutes'))
+app.use("/api/movies",require('./routes/movieRoutes'))
 
 const startServer = async () => {
     await connectDB();
