@@ -18,6 +18,7 @@ app.get("/",(req,res) =>{
 app.use(express.json());
 app.use("/api/auth",require('./routes/authRoutes'))
 app.use("/api/movies",require('./routes/movieRoutes'))
+app.use("/api/user",require('./routes/userRoutes'))
 
 const startServer = async () => {
     await connectDB();
