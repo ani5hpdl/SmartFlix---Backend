@@ -113,7 +113,7 @@ const login = async(req,res) =>{
 
             const verificationExpiresIn = new Date(Date.now() + 1 * 60 * 60 * 1000);
             await fetchUser.update({verificationExpiresIn : verificationExpiresIn});
-            const verificationLink = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
+            const verificationLink = `${process.env.FRONTEND_URL}/verify/${fetchUser.verificationToken}`;
             const html = verificationEmailTemplate(await fetchUser.name,verificationLink);
             const isEmailSent = sendEmail(email,"Verification Email",html);
 
@@ -187,6 +187,14 @@ const verify = async(req,res) => {
                 success : false,
                 message : "Invalid Token"
             });
+        }
+
+        if(fetchUser.isEmailVerified){
+            return res.status(200).json({
+            success : true,
+            message : "You are already Verified Try Logging!!"
+        });
+
         }
 
         if(fetchUser.verificationExpiresIn < new Date()){
