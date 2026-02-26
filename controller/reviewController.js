@@ -7,7 +7,11 @@ const { Op } = require("sequelize");
 // CREATE REVIEW
 // ========================================
 const createReview = async (req, res) => {
-  const { user_id, movie_id, rating, review_text, is_spoiler } = req.body;
+  const { movie_id, rating, review_text, is_spoiler } = req.body;
+  console.log(req.user);
+  console.log("Received review data:", { movie_id, rating, review_text, is_spoiler, user_id: req.user?.userId });
+
+  const user_id = req.user?.userId;
 
   try {
     if (!user_id || !movie_id || !rating) {
@@ -78,7 +82,7 @@ const updateReview = async (req, res) => {
       });
     }
 
-    const isOwner = Number(review.user_id) === Number(req.user?.id);
+    const isOwner = Number(review.user_id) === Number(req.user?.userId);
     const isAdmin = req.user?.role === "admin";
 
     if (!isOwner && !isAdmin) {
@@ -125,7 +129,7 @@ const deleteReview = async (req, res) => {
       });
     }
 
-    const isOwner = Number(review.user_id) === Number(req.user?.id);
+    const isOwner = Number(review.user_id) === Number(req.user?.userId);
     const isAdmin = req.user?.role === "admin";
 
     if (!isOwner && !isAdmin) {

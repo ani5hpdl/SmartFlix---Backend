@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors'); 
 const { sequelize, connectDB } = require("./database/db")
+require("./models/associations");
 require('dotenv').config();
 
 app.use(cors({

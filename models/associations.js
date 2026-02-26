@@ -1,6 +1,6 @@
-const User = require("./User");
-const Movie = require("./Movie");
-const Review = require("./Review");
+const User = require("./UserModel");
+const Movie = require("./MovieModel");
+const Review = require("./ReviewModel");
 
 // ======================
 // USER ↔ REVIEW
