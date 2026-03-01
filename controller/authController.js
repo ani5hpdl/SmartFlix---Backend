@@ -224,4 +224,48 @@ const verify = async(req,res) => {
     }
 }
 
-module.exports = {registerUser,login,logOut,verify}     
+const getMe = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized user",
+            });
+        }
+
+        const fetchUser = await User.findByPk(userId, {
+            attributes: [
+                "id",
+                "name",
+                "email",
+                "role",
+                "isActive",
+                "isEmailVerified",
+                "createdAt",
+            ],
+        });
+
+        if (!fetchUser) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Profile fetched successfully",
+            data: fetchUser,
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Error while fetching profile",
+            error: error.message,
+        });
+    }
+};
+
+module.exports = {registerUser,login,logOut,verify,getMe}     
