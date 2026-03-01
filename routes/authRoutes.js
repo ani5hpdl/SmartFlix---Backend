@@ -1,12 +1,11 @@
 const { registerUser, login, logOut, verify, getMe } = require('../controller/authController');
 const authGuard = require('../helpers/authguard');
+const router = require('express').Router();
 
-const express = require('express').Router();
+router.post('/register',registerUser);
+router.post('/login',login);
+router.post('/logout',authGuard,logOut);
+router.get('/verify',verify);
+router.get('/getMe',authGuard,getMe);
 
-express.post('/register',registerUser);
-express.post('/login',login);
-express.post('/logout',logOut);
-express.get('/verify',verify);
-express.get('/getMe',authGuard,getMe);
-
-module.exports = express;
+module.exports = router;
