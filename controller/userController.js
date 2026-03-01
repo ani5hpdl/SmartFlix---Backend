@@ -217,7 +217,8 @@ const updateUser = async (req, res) => {
 const getAllUser = async (req, res) => {
   try {
     const { page, limit, offset } = parsePagination(req.query);
-    const { rows: users, count } = await User.findAndCountAll({
+    const count = await User.count();
+    const users = await User.findAll({
       attributes: [
         "id",
         "name",
@@ -241,10 +242,10 @@ const getAllUser = async (req, res) => {
           ],
         },
       ],
-      order: [["createdAt", "DESC"]],
+      order: [["id", "DESC"]],
       limit,
       offset,
-      distinct: true,
+      subQuery: false,
     });
 
     // Unlock expired accounts automatically
