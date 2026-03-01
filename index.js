@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors'); 
 const { sequelize, connectDB } = require("./database/db")
+const mainRouter = require("./routes/mainRouter");
 require("./models/associations");
 require('dotenv').config();
 
@@ -10,17 +11,8 @@ app.use(cors({
     credentials : true
 }));
 
-app.get("/",(req,res) =>{
-    res.json({
-        message : "Welcome to the Index Page"
-    })
-})
-
 app.use(express.json());
-app.use("/api/auth",require('./routes/authRoutes'))
-app.use("/api/movies",require('./routes/movieRoutes'))
-app.use("/api/user",require('./routes/userRoutes'))
-app.use("/api/review",require('./routes/reviewRoutes'))
+app.use("/api", mainRouter);
 
 const startServer = async () => {
     await connectDB();
