@@ -274,50 +274,163 @@ const importPopularMovies = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const tmdbResponse = await fetch(
-      `https://api.themoviedb.org/3/movie/popular?api_key=${encodeURIComponent(
-        tmdbApiKey
-      )}`
-    );
+    const formatRuntime = (runtime) =>
+      Number.isFinite(runtime) && runtime > 0 ? `${runtime}m` : null;
 
-    if (!tmdbResponse.ok) {
-      throw new Error(`TMDB request failed with status ${tmdbResponse.status}`);
+    const formatRevenue = (revenue) =>
+      Number.isFinite(revenue) && revenue > 0
+        ? `$${Math.round(revenue).toLocaleString("en-US")}`
+        : null;
+
+    const pickCertification = (releaseDatesPayload) => {
+      const results = Array.isArray(releaseDatesPayload?.results)
+        ? releaseDatesPayload.results
+        : [];
+      const usRelease = results.find((entry) => entry?.iso_3166_1 === "US");
+      const ratings = Array.isArray(usRelease?.release_dates)
+        ? usRelease.release_dates
+        : [];
+      const cert = ratings.map((entry) => entry?.certification).find(Boolean);
+      return cert || "NR";
+    };
+
+    const pickCrewNames = (crew, allowedJobs) => {
+      const jobs = new Set(allowedJobs);
+      const out = [];
+      const seen = new Set();
+
+      for (const person of Array.isArray(crew) ? crew : []) {
+        if (!person?.name || !jobs.has(person?.job) || seen.has(person.name)) {
+          continue;
+        }
+        seen.add(person.name);
+        out.push(person.name);
+      }
+      return out;
+    };
+
+    const mapWithConcurrency = async (items, concurrency, mapper) => {
+      const result = new Array(items.length);
+      let index = 0;
+      const workers = Array.from(
+        { length: Math.min(concurrency, items.length) },
+        async () => {
+          while (true) {
+            const currentIndex = index;
+            index += 1;
+            if (currentIndex >= items.length) break;
+            result[currentIndex] = await mapper(items[currentIndex], currentIndex);
+          }
+        }
+      );
+      await Promise.all(workers);
+      return result;
+    };
+
+    const parsedLimit = Number.parseInt(
+      req.query.limit || process.env.TMDB_IMPORT_LIMIT || "120",
+      10
+    );
+    const targetCount = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 1000)
+      : 120;
+
+    const perPage = 20;
+    const pagesToFetch = Math.min(Math.ceil(targetCount / perPage), 500);
+    const collected = new Map();
+
+    for (let page = 1; page <= pagesToFetch; page += 1) {
+      const tmdbResponse = await fetch(
+        `https://api.themoviedb.org/3/movie/popular?api_key=${encodeURIComponent(
+          tmdbApiKey
+        )}&page=${page}`
+      );
+
+      if (!tmdbResponse.ok) {
+        throw new Error(`TMDB request failed on page ${page} with status ${tmdbResponse.status}`);
+      }
+
+      const payload = await tmdbResponse.json();
+      const movies = Array.isArray(payload?.results) ? payload.results : [];
+
+      for (const movie of movies) {
+        if (movie?.id && !collected.has(movie.id)) {
+          collected.set(movie.id, movie);
+        }
+      }
     }
 
-    const payload = await tmdbResponse.json();
-    const movies = payload?.results;
+    const moviesToImport = Array.from(collected.values()).slice(0, targetCount);
 
-    if (!Array.isArray(movies) || movies.length === 0) {
+    if (moviesToImport.length === 0) {
       throw new Error("No movies received from TMDB");
     }
 
-    const formattedMovies = movies.map((movie) => ({
-      title: movie.title || "Untitled",
-      year: movie.release_date
-        ? Number.parseInt(String(movie.release_date).slice(0, 4), 10)
-        : null,
-      rating: Number(movie.vote_average) || null,
-      totalRating: Number(movie.vote_average) || null,
-      votes:
-        movie.vote_count !== undefined && movie.vote_count !== null
-          ? String(movie.vote_count)
+    const detailedMovies = await mapWithConcurrency(
+      moviesToImport,
+      5,
+      async (movie) => {
+        const detailsResponse = await fetch(
+          `https://api.themoviedb.org/3/movie/${movie.id}?api_key=${encodeURIComponent(
+            tmdbApiKey
+          )}&append_to_response=credits,release_dates`
+        );
+
+        if (!detailsResponse.ok) {
+          throw new Error(
+            `TMDB details failed for movie ${movie.id} with status ${detailsResponse.status}`
+          );
+        }
+
+        return detailsResponse.json();
+      }
+    );
+
+    const formattedMovies = detailedMovies.map((movie) => {
+      const directorNames = pickCrewNames(movie?.credits?.crew, ["Director"]);
+      const writerNames = pickCrewNames(movie?.credits?.crew, [
+        "Writer",
+        "Screenplay",
+        "Story",
+      ]);
+      const languageNames = (Array.isArray(movie?.spoken_languages)
+        ? movie.spoken_languages
+        : []
+      )
+        .map((lang) => lang?.english_name || lang?.name)
+        .filter(Boolean);
+
+      return {
+        title: movie?.title || "Untitled",
+        year: movie?.release_date
+          ? Number.parseInt(String(movie.release_date).slice(0, 4), 10)
           : null,
-      ageRating: "UA",
-      duration: null,
-      genres: Array.isArray(movie.genre_ids) ? movie.genre_ids.join(", ") : null,
-      director: null,
-      writers: null,
-      revenue: null,
-      releaseDate: movie.release_date || null,
-      languages: movie.original_language || null,
-      synopsis: movie.overview || null,
-      imageUrl: movie.poster_path
-        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-        : null,
-      backdropUrl: movie.backdrop_path
-        ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}`
-        : null,
-    }));
+        rating: Number(movie?.vote_average) || null,
+        totalRating: Number(movie?.vote_average) || null,
+        votes:
+          movie?.vote_count !== undefined && movie?.vote_count !== null
+            ? String(movie.vote_count)
+            : null,
+        ageRating: pickCertification(movie?.release_dates),
+        duration: formatRuntime(movie?.runtime),
+        genres: (Array.isArray(movie?.genres) ? movie.genres : [])
+          .map((genre) => genre?.name)
+          .filter(Boolean)
+          .join(", ") || null,
+        director: directorNames.join(", ") || null,
+        writers: writerNames.join(", ") || null,
+        revenue: formatRevenue(movie?.revenue),
+        releaseDate: movie?.release_date || null,
+        languages: languageNames.join(", ") || movie?.original_language || null,
+        synopsis: movie?.overview || null,
+        imageUrl: movie?.poster_path
+          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+          : null,
+        backdropUrl: movie?.backdrop_path
+          ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}`
+          : null,
+      };
+    });
 
     await Movie.destroy({
       where: {},
@@ -334,6 +447,8 @@ const importPopularMovies = async (req, res) => {
       success: true,
       message: "Popular movies imported successfully",
       count: formattedMovies.length,
+      requested: targetCount,
+      pagesFetched: pagesToFetch,
     });
   } catch (error) {
     await transaction.rollback();
@@ -346,9 +461,44 @@ const importPopularMovies = async (req, res) => {
   }
 };
 
+// ===============================
+// DELETE ALL MOVIES
+// ===============================
+const deleteAllMovies = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const deletedCount = await Movie.count({ transaction });
+
+    await Movie.destroy({
+      where: {},
+      truncate: true,
+      restartIdentity: true,
+      cascade: true,
+      transaction,
+    });
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: "All movies deleted successfully",
+      deletedCount,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("deleteAllMovies error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete all movies",
+    });
+  }
+};
+
 module.exports = {
   getAllMovies,
   getFilteredMovies,
   getMovieById,
   importPopularMovies,
+  deleteAllMovies,
 };
