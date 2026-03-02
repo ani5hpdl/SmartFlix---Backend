@@ -2,6 +2,7 @@ const Movie = require("../models/MovieModel");
 const Review = require("../models/ReviewModel");
 const User = require("../models/UserModel");
 const { Op } = require("sequelize");
+const { sequelize } = require("../database/db");
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 30;
@@ -257,8 +258,97 @@ const getMovieById = async (req, res) => {
   }
 };
 
+// ===============================
+// IMPORT POPULAR MOVIES FROM TMDB
+// ===============================
+const importPopularMovies = async (req, res) => {
+  const tmdbApiKey = process.env.TMDB_API_KEY;
+
+  if (!tmdbApiKey) {
+    return res.status(500).json({
+      success: false,
+      message: "TMDB_API_KEY is not configured",
+    });
+  }
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const tmdbResponse = await fetch(
+      `https://api.themoviedb.org/3/movie/popular?api_key=${encodeURIComponent(
+        tmdbApiKey
+      )}`
+    );
+
+    if (!tmdbResponse.ok) {
+      throw new Error(`TMDB request failed with status ${tmdbResponse.status}`);
+    }
+
+    const payload = await tmdbResponse.json();
+    const movies = payload?.results;
+
+    if (!Array.isArray(movies) || movies.length === 0) {
+      throw new Error("No movies received from TMDB");
+    }
+
+    const formattedMovies = movies.map((movie) => ({
+      title: movie.title || "Untitled",
+      year: movie.release_date
+        ? Number.parseInt(String(movie.release_date).slice(0, 4), 10)
+        : null,
+      rating: Number(movie.vote_average) || null,
+      totalRating: Number(movie.vote_average) || null,
+      votes:
+        movie.vote_count !== undefined && movie.vote_count !== null
+          ? String(movie.vote_count)
+          : null,
+      ageRating: "UA",
+      duration: null,
+      genres: Array.isArray(movie.genre_ids) ? movie.genre_ids.join(", ") : null,
+      director: null,
+      writers: null,
+      revenue: null,
+      releaseDate: movie.release_date || null,
+      languages: movie.original_language || null,
+      synopsis: movie.overview || null,
+      imageUrl: movie.poster_path
+        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+        : null,
+      backdropUrl: movie.backdrop_path
+        ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}`
+        : null,
+    }));
+
+    await Movie.destroy({
+      where: {},
+      truncate: true,
+      restartIdentity: true,
+      cascade: true,
+      transaction,
+    });
+
+    await Movie.bulkCreate(formattedMovies, { transaction });
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: "Popular movies imported successfully",
+      count: formattedMovies.length,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("importPopularMovies error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Import failed. Existing data preserved.",
+    });
+  }
+};
+
 module.exports = {
   getAllMovies,
   getFilteredMovies,
   getMovieById,
+  importPopularMovies,
 };
